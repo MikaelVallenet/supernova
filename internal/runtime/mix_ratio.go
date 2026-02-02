@@ -25,6 +25,7 @@ type mixRatio struct {
 
 type MixConfig struct {
 	Ratios []mixRatio
+	Seed   int64 // Optional seed for reproducible shuffling (0 = use current time)
 }
 
 // ParseMixRatio parses a mix ratio string into a MixConfig

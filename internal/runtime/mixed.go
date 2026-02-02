@@ -199,7 +199,14 @@ func (m *mixedRuntime) generateShuffledSequence(txCounts map[Type]uint64) []Type
 		}
 	}
 
-	rng := rand.New(rand.NewSource(time.Now().UnixNano())) //nolint:gosec // G404: Weak random number is acceptable here
+	seed := m.config.Seed
+	if seed == 0 {
+		seed = time.Now().UnixNano()
+	}
+
+	fmt.Printf("Using shuffle seed: %d (use --mix-seed=%d to reproduce)\n", seed, seed)
+
+	rng := rand.New(rand.NewSource(seed)) //nolint:gosec // G404: Weak random number is acceptable here
 	rng.Shuffle(len(sequence), func(i, j int) {
 		sequence[i], sequence[j] = sequence[j], sequence[i]
 	})

@@ -77,6 +77,13 @@ func registerFlags(fs *flag.FlagSet, c *internal.Config) {
 		"transaction mix ratios for MIXED mode, e.g., \"REALM_CALL:70,REALM_DEPLOYMENT:20,PACKAGE_DEPLOYMENT:10\"",
 	)
 
+	fs.Int64Var(
+		&c.MixSeed,
+		"mix-seed",
+		0,
+		"optional seed for reproducible transaction shuffling in MIXED mode (0 = random)",
+	)
+
 	fs.StringVar(
 		&c.Output,
 		"output",

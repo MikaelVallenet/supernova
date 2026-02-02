@@ -65,6 +65,7 @@ func (p *Pipeline) Execute(ctx context.Context) error {
 			return fmt.Errorf("unable to parse mix ratio: %w", err)
 		}
 
+		mixConfig.Seed = p.cfg.MixSeed
 		ctx = runtime.WithMixConfig(ctx, mixConfig)
 	}
 

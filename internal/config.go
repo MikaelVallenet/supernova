@@ -34,6 +34,7 @@ type Config struct {
 	Mnemonic string // the mnemonic for the keyring
 	Mode     string // the stress test mode
 	MixRatio string // transaction mix ratios for MIXED mode
+	MixSeed  int64  // optional seed for reproducible shuffling in MIXED mode
 	Output   string // output path for results JSON, if any
 
 	SubAccounts  uint64 // the number of sub-accounts in the run
