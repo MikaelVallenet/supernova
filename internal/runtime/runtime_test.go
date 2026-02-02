@@ -415,16 +415,17 @@ func TestRuntime_Mixed_RealmCallUsesPredeployedPath(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	// Access the mixed runtime to verify realmPath is set and used
+	// Access the mixed runtime to verify realmPath is set via the composed realmCallRT
 	mr := r.(*mixedRuntime)
-	assert.NotEmpty(t, mr.realmPath)
-	assert.Contains(t, mr.realmPath, realmPathPrefix)
+	require.NotNil(t, mr.realmCallRT)
+	assert.NotEmpty(t, mr.realmCallRT.realmPath)
+	assert.Contains(t, mr.realmCallRT.realmPath, realmPathPrefix)
 
 	// Verify getMsgForType produces a MsgCall targeting the predeployed path
 	msg := mr.getMsgForType(RealmCall, accounts[0], 0)
 	callMsg, ok := msg.(vm.MsgCall)
 	require.True(t, ok)
-	assert.Equal(t, mr.realmPath, callMsg.PkgPath)
+	assert.Equal(t, mr.realmCallRT.realmPath, callMsg.PkgPath)
 	assert.Equal(t, methodName, callMsg.Func)
 }
 

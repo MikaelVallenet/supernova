@@ -6,7 +6,6 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/gnolang/gno/gno.land/pkg/sdk/vm"
 	"github.com/gnolang/gno/tm2/pkg/crypto"
 	"github.com/gnolang/gno/tm2/pkg/std"
 	"github.com/gnolang/supernova/internal/common"
@@ -15,15 +14,19 @@ import (
 )
 
 type mixedRuntime struct {
-	ctx       context.Context
-	config    *MixConfig
-	realmPath string
+	ctx             context.Context
+	config          *MixConfig
+	realmCallRT     *realmCall         // for Initialize + RealmCall msgs
+	realmDeployRT   *realmDeployment   // for RealmDeployment msgs
+	packageDeployRT *packageDeployment // for PackageDeployment msgs
 }
 
 func newMixedRuntime(ctx context.Context, config *MixConfig) *mixedRuntime {
 	return &mixedRuntime{
-		ctx:    ctx,
-		config: config,
+		ctx:             ctx,
+		config:          config,
+		realmDeployRT:   newRealmDeployment(ctx),
+		packageDeployRT: newPackageDeployment(ctx),
 	}
 }
 
@@ -38,55 +41,10 @@ func (m *mixedRuntime) Initialize(
 		return nil, nil
 	}
 
-	m.realmPath = fmt.Sprintf(
-		"%s/%s/stress_%d",
-		realmPathPrefix,
-		account.GetAddress().String(),
-		time.Now().Unix(),
-	)
+	// Delegate to realmCall runtime for initialization
+	m.realmCallRT = newRealmCall(m.ctx)
 
-	msg := vm.MsgAddPackage{
-		Creator: account.GetAddress(),
-		Package: &std.MemPackage{
-			Name: packageName,
-			Path: m.realmPath,
-			Files: []*std.MemFile{
-				{
-					Name: gnomodFileName,
-					Body: gnomodBody,
-				},
-				{
-					Name: realmFileName,
-					Body: realmBody,
-				},
-			},
-		},
-	}
-
-	tx := &std.Tx{
-		Msgs: []std.Msg{msg},
-		Fee:  common.CalculateFeeInRatio(currentMaxGas, gasPrice),
-	}
-
-	err := signFn(tx)
-	if err != nil {
-		return nil, fmt.Errorf("unable to sign initialize transaction, %w", err)
-	}
-
-	gasWanted, err := estimateFn(m.ctx, tx)
-	if err != nil {
-		return nil, fmt.Errorf("unable to estimate gas: %w", err)
-	}
-
-	tx.Signatures = make([]std.Signature, 0)
-	tx.Fee = common.CalculateFeeInRatio(gasWanted+gasBuffer, gasPrice)
-
-	err = signFn(tx)
-	if err != nil {
-		return nil, fmt.Errorf("unable to sign initialize transaction, %w", err)
-	}
-
-	return []*std.Tx{tx}, nil
+	return m.realmCallRT.Initialize(account, signFn, estimateFn, currentMaxGas, gasPrice)
 }
 
 func (m *mixedRuntime) CalculateRuntimeCosts(
@@ -250,64 +208,13 @@ func (m *mixedRuntime) generateShuffledSequence(txCounts map[Type]uint64) []Type
 }
 
 func (m *mixedRuntime) getMsgForType(txType Type, creator std.Account, index int) std.Msg {
-	timestamp := time.Now().Unix()
-
 	switch txType {
 	case RealmCall:
-		return vm.MsgCall{
-			Caller:  creator.GetAddress(),
-			PkgPath: m.realmPath,
-			Func:    methodName,
-			Args:    []string{fmt.Sprintf("Account-%d", index)},
-		}
+		return m.realmCallRT.getMsgFn(creator, index)
 	case RealmDeployment:
-		return vm.MsgAddPackage{
-			Creator: creator.GetAddress(),
-			Package: &std.MemPackage{
-				Name: packageName,
-				Path: fmt.Sprintf(
-					"%s/%s/stress_%d_%d",
-					realmPathPrefix,
-					creator.GetAddress().String(),
-					timestamp,
-					index,
-				),
-				Files: []*std.MemFile{
-					{
-						Name: gnomodFileName,
-						Body: gnomodBody,
-					},
-					{
-						Name: realmFileName,
-						Body: realmBody,
-					},
-				},
-			},
-		}
+		return m.realmDeployRT.getMsgFn(creator, index)
 	case PackageDeployment:
-		return vm.MsgAddPackage{
-			Creator: creator.GetAddress(),
-			Package: &std.MemPackage{
-				Name: packageName,
-				Path: fmt.Sprintf(
-					"%s/%s/stress_%d_%d",
-					packagePathPrefix,
-					creator.GetAddress().String(),
-					timestamp,
-					index,
-				),
-				Files: []*std.MemFile{
-					{
-						Name: gnomodFileName,
-						Body: gnomodBody,
-					},
-					{
-						Name: packageFileName,
-						Body: packageBody,
-					},
-				},
-			},
-		}
+		return m.packageDeployRT.getMsgFn(creator, index)
 	default:
 		return nil
 	}
